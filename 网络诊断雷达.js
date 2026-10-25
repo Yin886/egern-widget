@@ -1,7 +1,8 @@
 /**
  * Egern「网络诊断雷达」
  *
- * 本版修改（2026-10-25）：AI 解锁检测删除 DeepSeek、新增 Muse；Claude / Grok / Muse 改用品牌图标。策略组与检测逻辑与原版一致。
+ * 本版修改（2026-10-25）：AI 解锁检测删除 DeepSeek、新增 Muse；Claude / Grok / Muse 改用品牌图标。
+ * 策略组按机主配置文件写死优先：AI 六项第一候选为「AI」组，流媒体六项第一候选为其同名组（Netflix / Disney+ / Spotify / TikTok / YouTube / Prime Video）。
  *
  * 环境变量：
  * - POLICY：最高优先级。指定后，出口、延迟、UDP/QUIC、流媒体、AI 全部统一走 POLICY
@@ -2731,11 +2732,29 @@ function servicePolicyCandidates(serviceId, category) {
 
   const serviceCandidates = serviceMap[id] || [];
 
-  if (type === "ai") {
-    return serviceCandidates.concat(commonAI);
-  }
+  const combined =
+    type === "ai"
+      ? serviceCandidates.concat(commonAI)
+      : serviceCandidates.concat(commonLMT);
 
-  return serviceCandidates.concat(commonLMT);
+  const userPolicyFirst = {
+    netflix: "Netflix",
+    disney: "Disney+",
+    spotify: "Spotify",
+    tiktok: "TikTok",
+    youtube: "YouTube",
+    prime: "Prime Video",
+    chatgpt: "AI",
+    claude: "AI",
+    gemini: "AI",
+    muse: "AI",
+    grok: "AI",
+    perplexity: "AI"
+  };
+
+  const first = userPolicyFirst[id];
+
+  return first ? [first].concat(combined) : combined;
 }
 
 function dedupeCandidates(values) {
