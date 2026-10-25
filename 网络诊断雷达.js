@@ -1,8 +1,7 @@
 /**
  * Egern「网络诊断雷达」
  *
- * 本版修改（2026-10-25）：AI 解锁检测删除 DeepSeek、新增 Muse；Claude / Grok / Muse 改用品牌图标；
- * 流媒体 / AI 先自动探测分类策略组（LMT / AI），再逐个服务匹配专属策略组，探测结果整轮缓存复用。
+ * 本版修改（2026-10-25）：AI 解锁检测删除 DeepSeek、新增 Muse；Claude / Grok / Muse 改用品牌图标。策略组与检测逻辑与原版一致。
  *
  * 环境变量：
  * - POLICY：最高优先级。指定后，出口、延迟、UDP/QUIC、流媒体、AI 全部统一走 POLICY
@@ -43,7 +42,6 @@ export default async function (ctx) {
   const FORCE_LOCAL_MAINLAND = true;
 
   const servicePolicyCache = {};
-  const categoryPolicyCache = {};
   const policyProbeCache = {};
   const policyExitCache = {};
 
@@ -531,30 +529,6 @@ export default async function (ctx) {
     return "";
   }
 
-  async function resolveCategoryPolicy(category) {
-    const type = clean(category).toLowerCase();
-
-    if (POLICY) {
-      return POLICY;
-    }
-
-    if (type === "lmt" && LMT_POLICY) {
-      return LMT_POLICY;
-    }
-
-    if (type === "ai" && AI_POLICY) {
-      return AI_POLICY;
-    }
-
-    if (!categoryPolicyCache[type]) {
-      categoryPolicyCache[type] = firstWorkingPolicy(
-        servicePolicyCandidates("", type, "common")
-      );
-    }
-
-    return await categoryPolicyCache[type];
-  }
-
   async function resolveServicePolicy(serviceId, category) {
     const id = clean(serviceId).toLowerCase();
     const type = clean(category).toLowerCase();
@@ -574,12 +548,8 @@ export default async function (ctx) {
       result = AI_POLICY;
     } else {
       result = await firstWorkingPolicy(
-        servicePolicyCandidates(id, type, "service")
+        servicePolicyCandidates(id, type)
       );
-
-      if (!result) {
-        result = await resolveCategoryPolicy(type);
-      }
     }
 
     servicePolicyCache[cacheKey] = result;
@@ -1084,11 +1054,6 @@ export default async function (ctx) {
       exit: serviceExit
     };
   }
-
-  await Promise.all([
-    resolveCategoryPolicy("lmt"),
-    resolveCategoryPolicy("ai")
-  ]);
 
   const [
     mediaPolicyMap,
@@ -2347,20 +2312,13 @@ function palette() {
   };
 }
 
-function servicePolicyCandidates(serviceId, category, mode) {
+function servicePolicyCandidates(serviceId, category) {
   const id = clean(serviceId).toLowerCase();
   const type = clean(category).toLowerCase();
 
   const commonLMT = [
     "LMT",
     "流媒体",
-    "流媒体组",
-    "媒体组",
-    "解锁组",
-    "流媒体分流",
-    "流媒体专线",
-    "影音组",
-    "视频组",
     "流媒体解锁",
     "流媒体服务",
     "流媒体策略",
@@ -2450,17 +2408,6 @@ function servicePolicyCandidates(serviceId, category, mode) {
     "AI",
     "Ai",
     "ai",
-    "AI组",
-    "AI 组",
-    "AI线路",
-    "AI 线路",
-    "AI分流",
-    "AI 分流",
-    "AI代理",
-    "AI 代理",
-    "AI专线",
-    "AI 专线",
-    "人工智能组",
     "人工智能",
     "人工智能服务",
     "AI服务",
@@ -2500,7 +2447,6 @@ function servicePolicyCandidates(serviceId, category, mode) {
     "Google AI",
     "Bard",
     "Muse",
-    "Meta Muse",
     "Grok",
     "xAI",
     "XAI",
@@ -2784,14 +2730,6 @@ function servicePolicyCandidates(serviceId, category, mode) {
   };
 
   const serviceCandidates = serviceMap[id] || [];
-
-  if (mode === "common") {
-    return type === "ai" ? commonAI.slice() : commonLMT.slice();
-  }
-
-  if (mode === "service") {
-    return serviceCandidates.slice();
-  }
 
   if (type === "ai") {
     return serviceCandidates.concat(commonAI);
